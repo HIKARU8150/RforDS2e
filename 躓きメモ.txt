@@ -1,0 +1,15 @@
+230418
+①
+2 Data Visualizationのセクション
+scale_color_colorblind()が無い
+
+Error in scale_color_colorblind() : 
+  could not find function "scale_color_colorblind"
+
+ggthemesのライブラリに入っているようなのでsintall.packages("ggthemes")でクリア
+
+②
+"bill depth"って何？
+嘴の幅を上から下方向に測ったもの
+https://www.allaboutbirds.org/news/sizing-up-the-worlds-birds-with-avonet/
+
