@@ -132,3 +132,35 @@ ggplot() +
     data = penguins,
     mapping = aes(x = flipper_length_mm, y = body_mass_g)
   )
+
+# 2.4.3 Exercises
+
+## 1. A bar plot of species of penguins
+ggplot(penguins, aes(y = species)) + 
+  geom_bar()
+
+## 2. color of bars
+### fill is more useful
+
+ggplot(penguins, aes(x = species)) +
+  geom_bar(color = "red")
+
+ggplot(penguins, aes(x = species)) +
+  geom_bar(fill = "red")
+
+## 3. bins argument in geom_histogram()
+?geom_histogram
+#Number of bins. Overridden by binwidth. Defaults to 30.
+
+## 4. Diamonds dataset
+diamonds <- diamonds
+
+ggplot(diamonds, aes(x = carat)) +
+  geom_histogram(binwidth = 0.2)
+
+### ビン数の案としてのスタージェスの公式
+### 1 + log2(n)
+num_bin = 1 + trunc(log2(dim(diamonds)[1]))
+
+ggplot(diamonds, aes(x = carat)) + 
+  geom_histogram(bin = num_bin)

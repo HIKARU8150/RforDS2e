@@ -13,3 +13,6 @@ ggthemesのライブラリに入っているようなのでsintall.packages("ggt
 嘴の幅を上から下方向に測ったもの
 https://www.allaboutbirds.org/news/sizing-up-the-worlds-birds-with-avonet/
 
+0423
+Q9でcolor = islandがggplotの所にあるからsmoothingも3本出る（globalのレベル）なのを見逃した。
+
