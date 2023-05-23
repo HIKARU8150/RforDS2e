@@ -1,6 +1,9 @@
 library(tidyverse)
 library(ggthemes)
+library(nycflights13)
 
+
+?geom_density
 
 # 2 Data visualization ----------------------------------------------------
 
@@ -51,7 +54,7 @@ ggplot(
 ) + 
   geom_point()
 
-###It seems that plotting the data in boxplots is a better idea.
+###It seems that plotting the data in boxplots is a better idea since species are categorical.
 ggplot(
   data = penguins,
   mapping = aes(x = species, y = bill_depth_mm)
@@ -112,10 +115,12 @@ ggplot(
   mapping = aes(x = flipper_length_mm, y = body_mass_g, color = island)
 ) +
   geom_point() +
-  geom_smooth(se = FALSE)
+  geom_smooth(se = FALSE) #se argument displays confidence interval around smooth.
+
+?geom_area
 
 ## 10. these two different?
-### same. One above assigns veriables in global level, while the other assigns veriables in local levels.
+### same. The first one assigns variables in global level, while the other assigns variables in local levels.
 ggplot(
   data = penguins,
   mapping = aes(x = flipper_length_mm, y = body_mass_g)
@@ -164,3 +169,28 @@ num_bin = 1 + trunc(log2(dim(diamonds)[1]))
 
 ggplot(diamonds, aes(x = carat)) + 
   geom_histogram(bin = num_bin)
+
+ggplot(penguins, aes(x = body_mass_g, color = species)) +
+  geom_density(linewidth = 1.5)
+
+mpg_data <-mpg
+
+ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point()
+ggsave("mpg-plot.pdf")
+unlink("mpg-plot.pdf")
+
+?ggsave
+
+# 3.5 Exercise
+my_bar_plot <- ggplot(mpg, aes(x = class)) +
+  geom_bar()
+my_scatter_plot <- ggplot(mpg, aes(x = cty, y = hwy)) +
+  geom_point()
+ggsave(filename = "mpg-plot.png", plot = my_bar_plot)
+
+# 4
+flights |> 
+  filter(month %in% c(1,2) & day %in% c(1,2)) 
+
+flight_data <- flights

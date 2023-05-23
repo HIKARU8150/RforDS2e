@@ -1,0 +1,260 @@
+---
+title: "4.Data_transformation"
+author: "Hikaru Hashimoto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(nycflights13)
+library(tidyverse)
+```
+
+## 4.2 Rows
+%in%のショートカットが視覚的にも便利だと思った。テキストの例を広げて、1月か2月and1日2日の表記がすっきりおさまる。  
+
+distinct()はデータの重複が無いかを探せるのか。
+
+
+```{r row_manipulation}
+flights |> 
+  filter(month %in% c(1,2) & day %in% c(1,2))
+
+flights |> 
+  arrange(year,desc(month), desc(day), dep_time)
+
+flights |> 
+  distinct(origin, dest) |> 
+  arrange(origin)
+
+```
+
+## 4.2.5 Exercises
+
+### Q1
+To find abbreviations for carrier, there is a tibble called "airlines".
+```{r Q1}
+# one for each condition
+flights |> 
+  #filter(arr_delay >= 120)
+  #filter(dest %in% c("IAH", "HOU"))
+  #filter(carrier %in% c("UA", "AA", "DL")) 
+  #filter(month %in% c(7, 8, 9))
+  #filter(arr_delay > 120 & dep_delay == 0)
+  filter(arr_delay >= 60 & dep_delay < 30 )
+  
+  
+```
+
+### Q2
+
+Earliest in the morningを朝4時とおく。
+
+```{r Q2}
+flights |> 
+  arrange(desc(dep_delay)) |> 
+  filter(dep_time > 400)
+```
+
+
+### Q3
+
+air_time: Amount of time spent in the air, in minutes.
+
+```{r Q3}
+flights |> 
+  arrange(desc(distance/air_time))
+
+
+```
+
+### Q4
+n_distinctの関数が使えました。
+```{r Q4}
+
+flights |> 
+  distinct(month, day) |> 
+  n_distinct()
+```
+
+### Q5
+
+```{r}
+# farthest
+flights |> 
+  arrange(desc(distance))
+
+# least
+flights |> 
+  arrange(distance)
+```
+
+### Q6
+
+実行時間を測るライブラリを試してみた[参考](https://uura.site/r-command-time/)。system.time()がなにもインストールしなくてよかったのでそれで。tictocのライブラリが可愛い。二つを実行すればわかるが、先にfilterしたほうがはやい。並び替えないといけないデータ数が減るから直感と合う。  
+
+arrangeってどうやって並び替えてるんかな。ソートのアルゴリズム面白いんですよね[参考](https://qiita.com/r-ngtm/items/f4fa55c77459f63a5228#%E5%8F%82%E8%80%83url)。
+
+```{r}
+
+system.time(
+  flights |> 
+    arrange(distance) |> 
+    filter(month == 12) 
+)
+
+
+system.time(
+  flights |> 
+    filter(month == 12) |> 
+    arrange(distance) 
+)
+
+```
+
+## 4.3 Columns
+
+### mutate()
+
+.keepでは"all", "used", "unused", "none"のオプションがある。
+
+```{r}
+flights |> 
+  mutate(
+    gain = dep_delay - arr_delay,
+    hours = air_time / 60,
+    gain_per_hour = gain / hours,
+    .keep = "none"
+    
+  )
+```
+
+### select()
+
+```{r}
+
+#helper の例
+
+flights　|> 
+  select(
+    ends_with("time")
+  )
+
+flights |> 
+  select(tail_num = tailnum)
+
+```
+
+### rename()
+
+```{r}
+# tailnumをtail_numに変える
+
+flights |> 
+  rename(tail_num = tailnum)
+```
+
+### relocate()
+
+```{r}
+flights |> 
+  relocate(starts_with("arr"), .before = dep_time)
+```
+
+## 4.3.5 Exercises
+
+### Q1
+
+dep_time = sched_dep_time + dep_delay
+
+予定されていた出発時刻に遅延時間を足すと実際の出発時間になる、まあそうだよなって話。
+
+```{r}
+flights |> 
+  select(dep_time, sched_dep_time, dep_delay)
+
+
+```
+
+
+
+### Q2
+
+```{r}
+# flights |> 
+#   select(dep_time, dep_delay, arr_time, arr_delay)
+
+flights |> 
+  select(4, 6, 7, 9)
+
+```
+
+### Q3
+
+the variable specified several times appears only once.
+
+```{r}
+flights |> 
+  select(day, day, day)
+```
+
+
+### Q4
+all_of()とany_of()はselect()内の変数名として文字型ベクトルを使う際に用いる関数です[参考](https://www.jaysong.net/RBook/datahandling1.html)。
+
+all_of()は文字型ベクトルの中にデータフレームに含まれていないものが入っていてもエラーにならず該当する変数だけ返してくれる。
+```{r}
+variables <- c("year", "month", "day", "dep_delay", "arr_delay")
+
+flights |> 
+  select(any_of(variables))
+```
+
+### Q5
+Helpから。
+contains(match, ignore.case = TRUE, vars = NULL)
+
+```{r}
+flights |> 
+  select(contains("TIME"k ignore.care = FALSE))
+```
+
+### Q6
+
+```{r}
+flights |> 
+  rename(air_time_min = air_time) |> 
+  relocate(air_time_min)
+```
+
+### Q7
+エラーメッセージはobject 'arr_delay' not found。
+selectでtailnumだけのデータフレームのみになっているので当然arr_delayは無い。どうしてもarrangeしたいのであれば先にarrangeしてからselect。
+
+```{r}
+flights |> 
+  select(tailnum)
+
+flights |> 
+  arrange(arr_delay) |> 
+  select(tailnum)
+```
+
+
+## 4.4 the pipe
+
+パイプ演算子使うと読み書きがクリアになるよって内容。
+
+```{r}
+flights |> 
+  filter(dest == "IAH") |> 
+  mutate(speed = distance / air_time * 60) |> 
+  select(year:day, dep_time, carrier, flight, speed) |> 
+  arrange(desc(speed))
+
+```
+
+## 4.5 groups
+
