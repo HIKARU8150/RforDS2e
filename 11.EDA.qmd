@@ -1,0 +1,815 @@
+---
+title: "11.EDA"
+author: "Hikaru"
+format: html
+editor: visual
+---
+
+```{r setup}
+#| include: false
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+## 11.1 Intro
+
+Exploratory data analysis (EDA)について勉強するよ。
+
+-   持っているデータについて疑問を持つ
+-   視覚化、データの加工、モデリング等で答えを見つける
+-   さらに新しい疑問を持つ
+
+といったことがEDAでは繰り返される。繰り返していくうちに共有すべきインサイトが見つかってくる。
+
+## 11.2 Questions
+
+テキスト本文では冒頭に格言が二つ出てきているのでそれっぽいの載せておきます。
+
+> Garbage In Garbage Out
+
+EDAの目的はデータについて理解すること。その原動力になるのが疑問を持ってデータにあたること。コツは２つ。
+
+-   What type of variation occurs within my variables?\
+    （変数の中にどのような変動があるか）
+-   What type of covariation occurs between my variables?\
+    （変数間でどのような共変動があるか、変数間にどのような関連があるか）
+
+この章でvariationとcovariationについて見ていくことになるが、今回はVariationについて勉強していく。
+
+## 11.3 Variation
+
+Variation (訳語よくわからないので「変動」とします)は変数が測定ごとに変わることをいう。理論上一定のもの（例えば光の速さ）を計測しても計測誤差で測定ごとにブレが出る。もちろん異なるもの（例えば様々な人の目の色）を計測すると違う結果が出てくる。全ての変数に変動のパターンが存在するので、それを可視化していくのがEDAのアプローチの一つになる。
+
+diamondsのデータセットのcaratをヒストグラムで描画してみるとcaratの変数の変動が見える。
+
+```{r}
+ggplot(diamonds, aes(x = carat)) +
+  geom_histogram(binwidth = 0.5)
+```
+
+このグラフを見て、何を思うか、どう考えるかがデータを掘り進めるための次の疑問（follow-up questions）になる。ポイントはcuriosity (好奇心、「なんで？」)とskepticism (懐疑心、「ホントに？？」) を使うこと。具体的には次の二つの視点(typical values and unusual values)で考えるといい。
+
+### Typical Values
+
+上記のカラットのヒストグラムを例に挙げてTypical valulesについて考えるとと例えば以下のように考えられる。
+
+-   どの値が一番ありふれていて、それはなぜか。
+-   どの値が珍しく、それはなぜか。想定通りか。
+-   普通ではないパターンがあるか。どうすればそれが説明できるか。
+
+ちょっとググると、婚約指輪の定番は0.2-0.4カラット未満くらいとのこと。こういうものがヒストグラムに現れているように思える。
+
+> 割合が多いのは「0.2～0.3ct未満」と「0.3～0.4ct未満」で、合わせて52%と、約半数を占めています。([ソース](https://www.niwaka.com/ksm/radio/engagement-ring/diamond/base/08/#anc02))
+
+ヒストグラムでは0.25-0.75が一番高い。このデータセットは50,000件のデータなのでおよそ60％が0.25-0.75カラット。カラット数が大きいビンほどcountが少なくなるので分布にはあまり違和感を覚えない。ただ、小さいカラットに絞り、binwidthも小さくすると風景が少し変わってくる。
+
+```{r}
+smaller <- diamonds |> 
+  filter(carat < 3)
+
+ggplot(smaller, aes(x = carat)) +
+  geom_histogram(binwidth = 0.01)
+```
+
+-   なぜ切りのいい数字のカラットが他よりも多いのか。
+-   なぜピークの右側のほうがピークの左側よりも多いのか。
+
+1カラットのダイヤモンドを作ると想像する。1カラットにピッタリということは連続値の性質上あり得ないので1カラットにしようとしても誤差が出る。誤差は通常正規分布する（[ガウス！！](https://ai-trend.jp/basic-study/normal-distribution/normal-distribution/)）ので、1カラットのところを中心にベルカーブになっていないということは何かしらの意図（意思？）があると考えられる。\
+完全に推測だが、加工の工程はダイヤモンドを削っていくわけなので、一定の大きさを下回らないように設計する（誤差が出るならターゲットの数値よりも大きくなる方の誤差のほうが好まれる）のではないか。あるいは削るというロスを最小限にとどめようと意図しているか。どちらにせよ、なるべく削らずにキリのいい数字を狙いたいというような意思が反映された分布と考えられる。
+
+視覚化するとクラスター（サブグループ）が見えてくることがある。上記の図だとそれぞれのピークとそれの周辺をクラスターと考えることもできそう。クラスターについて考えるときは以下の切り口がある。
+
+-   クラスター内ではどのような特徴を共有しているか。\
+-   クラスターはどのように説明できるか。
+-   クラスターがミスリーディングになるときがある。
+
+ミスリーディングについてハンディな例を見つけたので載せておく。
+
+```{r}
+iris |> 
+  ggplot(aes(x = Sepal.Length, y = Petal.Length)) +
+  geom_point()
+```
+
+IrisのデータセットをSepal（がく）とPetal（花びら）でプロットすると小さいグループと大きいグループに見えるが（ご存知のように？）irisは3種類のアヤメのデータセットなので種類で色分けするとこうなる。
+
+```{r}
+iris |> 
+    ggplot(aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_jitter()
+```
+
+irisのデータセットだと「がくと花びらでプロットすると2つのグループになる！」と結論に飛びつくことは無いと思うが、もっと複雑なデータセットになるとこのような勘違いが起こる可能性は十分ある。
+
+書いていてふと、[おばけ煙突](https://www.city.adachi.tokyo.jp/hakubutsukan/chiikibunka/hakubutsukan/shiryo-obakentotsu.html)の話を思い出した。角度によっては1本にも2本にも3本にも見える4本の煙突。3次元のものを2次元で捉えているのでこのように煙突の本数が違って見える。irisも多次元のデータセットだが次元の圧縮の仕方によって3つのグループが2つに見えることがある、という話でした。
+
+ありふれた数字に着目するだけでも、その数字は一般常識と照らし合わせて普通の事なのか、クラスターを形成しているかといったことを考えることができる。一方で外れ値に注目するのもデータを見るいい視点になる。
+
+### Unusual values
+
+データには外れ値があることがある。入力エラーかもしれないが、新しい発見につながることがある。diamondsのデータの中にも大きさ(x, y, z)に入力ミスがありそう。
+
+```{r}
+diamonds |> 
+  filter(y < 3 | y > 20) |> 
+  select(price, x, y, z) |> 
+  arrange(y)
+```
+
+このデータセットのx, y, zはダイヤモンドの寸法を表す変数なので、0 \* 0 \* 0はおかしい。単位がmmなので、y軸が31.8mmや58.9mmというのもホントか？？(skepticism)となる。
+
+レポートでは外れ値を含めるものと含めないもの両方入れるのが無難。またあまりデータセット全体に大きな影響を与えず、なぜそんなデータがあるのかも分からない場合はそのデータを捨ててしまっても良い。ただし入力ミス等と判断して外れ値を省くなら省いたことをレポートに記入するといい。
+
+ここに一つ、テキストで言及されていないが重要な教訓が含まれている。データ分析系プロジェクトの際には必ず準備運動としてEDAを行うこと。このようにデータセットの中におかしなデータがあるか気づける。もちろんEDAを行わなくても途中でおかしなデータがあることに気づくこともあるだろうが、途中で気づくと手戻りが大きくなる可能性がある。最悪の場合データを集めなおして1からやり直しといったことも起こりうる。Garbage in garbage outみたいな話。
+
+話がそれて現在地を見落としそうになっているがここまでを纏めると、データセットを集めて可視化したときには二つの視点(typical values and unusual values)で考えるといいという話でした。そしていざ外れ値を見つけたらどうしようか、というのは次のセクションで言及されます。
+
+### Exercises
+
+#### 1. Explore the distribution of each of the x, y, and z variables in diamonds. What do you learn? Think about a diamond and how you might decide which dimension is the length, width, and depth.
+
+ヒストグラムを見てみると、xとyはほぼ同じでzがそれよりも平均的に小さい。
+
+```{r}
+diamonds |> 
+  # x,y,zを縦にして色分けしてヒストグラムにする。
+  pivot_longer(cols = c(x, y, z), names_to = "slide", values_to = "mm") |> 
+  # 描画の利便性のために大きすぎるのと0を取り除く。
+  filter(mm > 0 & mm < 30) |> 
+  ggplot(aes(x = mm, fill = slide)) +
+  geom_histogram() +
+  facet_grid(slide ~ .)
+
+```
+
+xとyがlengthとwidthで（どっちがどっちでもいい、面のたてよこ）、zがdepthと考えるのが妥当。
+
+参考：[ダイアモンドの計測についての用語](https://www.gemsociety.org/article/diamond-measurements/)
+
+Spoiler：[公式に記述がありました。](https://ggplot2.tidyverse.org/reference/diamonds.html)
+
+> x\
+> length in mm (0--10.74)
+>
+> y\
+> width in mm (0--58.9)
+>
+> z\
+> depth in mm (0--31.8)
+
+#### 2. Explore the distribution of price. Do you discover anything unusual or surprising? (Hint: Carefully think about the binwidth and make sure you try a wide range of values.)
+
+binwidth = 50にすると1475 \<= x \<= 1525の範囲でcountが0だった。他は数百観測されている価格帯なのでやや不自然。理由は分からん。
+
+```{r}
+diamonds |> 
+  ggplot(aes(x = price)) +
+  geom_histogram(binwidth = 50)
+
+layer_data() |> 
+  filter(count == 0)
+```
+
+また、5,000ドル手前くらいにある山がちょっときになるので、cut毎に分けて価格を見ると、idealとfairは山がほぼ一つでpremium, vary good, goodは山がふたつ。
+
+```{r}
+library(ggridges)
+
+diamonds |> 
+  ggplot(aes(x = price, y = cut, fill = cut, color = cut)) +
+  geom_density_ridges(alpha = 0.5, show.legend = FALSE)
+```
+
+#### 3. How many diamonds are 0.99 carat? How many are 1 carat? What do you think is the cause of the difference?
+
+1カラットを狙ってダイヤモンドを削り、ピッタリになったものとそうでなかったものの差と想像します。
+
+```{r}
+diamonds |> 
+  filter(carat == 0.99) |> 
+  nrow()
+
+diamonds |> 
+  filter(carat == 1) |> 
+  nrow()
+
+```
+
+#### 4. Compare and contrast coord_cartesian() vs. xlim() or ylim() when zooming in on a histogram. What happens if you leave binwidth unset? What happens if you try and zoom so only half a bar shows?
+
+テキストで描画されているダイヤモンドのy軸の大きさについてのヒストグラムで見る。まず通常のヒストグラム。
+
+```{r}
+ggplot(diamonds, aes(x = y)) + 
+  geom_histogram(binwidth = 0.5)
+```
+
+coord_cartesian()を使うと、データはそのままでズームする。以下だとたて軸を6000までに制限することでズームしたような描画ができる。
+
+```{r}
+ggplot(diamonds, aes(x = y)) + 
+  geom_histogram(binwidth = 0.5)+
+  coord_cartesian(ylim = c(0, 6000))
+```
+
+もう一つの方法としてxlimとylimを設定することもできる。
+
+（本文）
+
+> ggplot2 also has xlim() and ylim() functions that work slightly differently: they throw away the data outside the limits.
+
+xlim/ylimを設定すると、その設定以上の値のビンがNAに変わる。以下では6000以上のyを持つbinがNAに置き換えられている。この上下の画像を見比べると感覚がつかめると思います。
+
+```{r}
+ggplot(diamonds, aes(x = y)) + 
+  geom_histogram(binwidth = 0.5, na.rm = TRUE)+
+  ylim(c(0, 6000))
+```
+
+[シンプルにまとまっているnote](https://note.com/misaki_blog/n/nf78dd8e2b767)を見つけました。
+
+## 11.4 Unusual Values
+
+外れ値を見つけたときに取りうる選択肢は２つ。
+
+まずは外れ値を持つobservationを取り除いてしまうこと。たとえばさっきのdiamondsのｙの外れ値を含むobservationを取り除いてdiamonds2というデータフレームを作ることが挙げられる。ただし、外れ値のyを含むobservationの他の変数が同じように外れ値だと限らないのでこの方法はあまり良くない。小さいデータセットで全ての変数でこの方法を使うと使えるデータが残らない場合もある。
+
+もう一つの方法としては、外れ値をNAに置き換えること。naをどうするかを描画の時に考えると良い（na.rm = TRUEにするかどうか？）。
+
+```{r}
+diamonds2 <- diamonds |> 
+  # (余談)if_elseの関数はexcelのifに構文が似ている。
+  mutate(y = if_else(y < 3 | y > 20, NA, y))
+
+ggplot(diamonds2, aes(x = x, y = y)) + 
+  geom_point(na.rm = TRUE)
+```
+
+ちなみにNAに置き換えないとこうなる。見にくい。
+
+```{r}
+ggplot(diamonds, aes(x = x, y = y)) + 
+  geom_point(na.rm = TRUE)
+```
+
+あるいは、なぜ値が入っていないのか等調べるケースもありうる。nycflights13::flightsのデータセットでdep_timeがNAなのは欠航の便を意味している。
+
+```{r}
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+  ggplot(aes(x = sched_dep_time)) + 
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4)
+```
+
+### Exercise
+
+#### 1.What happens to missing values in a histogram? What happens to missing values in a bar chart? Why is there a difference in how missing values are handled in histograms and bar charts?
+
+前提：\
+histogram: xは連続値をビンで区切る\
+bar chart: xは離散値/カテゴリ変数
+
+ヒストグラムはnaは取り除かれる。その際にWarningが出る。
+
+```{r}
+  ggplot(diamonds2, aes(x = y)) +
+  geom_histogram()
+```
+
+NAを含む棒グラフを作ってみると、NAを一つのカテゴリで扱うことが分かる。
+
+```{r}
+diamonds |> 
+  # 外れ値のyを持っている行のcutをNAに変更する。
+  mutate(cut = if_else(y < 3 | y > 20, NA, cut)) |> 
+  ggplot(aes(x = cut)) +
+  geom_bar()
+```
+
+#### 2.What does na.rm = TRUE do in mean() and sum()?
+
+```{r}
+# NAが入っている列でmeanを行うとNAが返ってくる。どこかで触れた気がする。
+mean(diamonds2$y)
+
+mean(diamonds2$y, na.rm = TRUE)
+
+# sumも同様にNAがあるとNAを返す
+sum(diamonds2$y)
+
+sum(diamonds2$y, na.rm = TRUE)
+```
+
+#### 3.Recreate the frequency plot of scheduled_dep_time colored by whether the flight was cancelled or not. Also facet by the cancelled variable. Experiment with different values of the scales variable in the faceting function to mitigate the effect of more non-cancelled flights than cancelled flights.
+
+ぱっと浮かぶのがこれ。ただし目盛りが違うのはベタなミスリードの手法でもある。いっぱいキャンセルがあるように見えるが桁が全然違う。
+
+```{r}
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  )|> 
+  ggplot(aes(x = sched_dep_time)) + 
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/4) +
+  facet_grid(cancelled~., scales = "free_y")
+
+d <- layer_data()
+```
+
+（追記）facetを使わないので設問から外れてしまうが、欠航率を作って纏めればミスリードは起こらなそうと思ったのだが、思いのほか実装が難しく、無理やり数字はまとめたが今度は実数がわからない（あたりまえ）ので結局一長一短ですね。
+
+```{r}
+d |> 
+  pivot_wider(id_cols = x ,names_from = group, values_from = count, names_prefix = "group_") |> 
+  mutate(
+    n = group_1 + group_2,
+    欠航率 = group_2 / n
+  ) |> 
+  replace_na(replace = list(欠航率 = 0))|> 
+  ggplot(aes(x = x, y = 欠航率)) +
+  geom_col() +
+  coord_cartesian(ylim = c(0, 0.1)) +
+  xlab("departure time")
+```
+
+<!-- ## ここまでのまとめ -->
+
+<!-- EDAを行う際に一つの変数に着目して取り組むコツを見てきた。データセットの中で変数の値に疑問を持てるかどうかが一つの変数に着目したEDAの一歩になる。また外れ値を取る場合の対処法にも触れた。外れ値はNAに置き換えることが無難なことが多い。 -->
+
+
+
+## 11.5 Covariation
+変数どうしでどのように関連しているかを見るためにはそれらの変数を視覚化するといいよ。
+
+### A categorical and a numerical variable
+まずは質的変数（カテゴリ変数）と量的変数（数的変数）の組み合わせを見ていく。例としてdiamondのデータセットのcutとpriceでカット質で値段がどう変わるのかを観察する。
+
+```{r}
+ggplot(diamonds, aes(x = price)) + 
+  geom_freqpoly(aes(color = cut), binwidth = 500, linewidth = 0.75)
+```
+
+y軸がcountだと違いが見にくいので密度に変える。
+
+```{r}
+ggplot(diamonds, aes(x = price, y = after_stat(density))) + 
+  geom_freqpoly(aes(color = cut), binwidth = 500, linewidth = 0.75)
+```
+
+fairのカットが2500あたりで盛り上がっている。
+
+> fair diamonds (the lowest quality) have the highest average price! 
+
+と言われているがそれってこのグラフの解釈として正しいの？密度が高いからそう考えていいのか。
+
+今度は視点を変えて箱ひげ図で描画する。
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_boxplot()
+```
+
+> It supports the counter-intuitive finding that better quality diamonds are typically cheaper! 
+
+というのはidealの箱がFairよりも下にあることから解釈としては合っていると思う。
+
+mpgのデータセットで箱ひげ図の小細工を紹介していたがまた出て来るらしいので割愛。
+
+### Exercises
+
+#### Use what you’ve learned to improve the visualization of the departure times of cancelled vs. non-cancelled flights.
+
+freqpolyでy軸を密度に変えるアプローチ。昼よりも夜のほうが欠航が多いことが分かる。これをimproveと見做せるのかはわからん。
+```{r}
+nycflights13::flights |> 
+  mutate(
+    cancelled = is.na(dep_time),
+    sched_hour = sched_dep_time %/% 100,
+    sched_min = sched_dep_time %% 100,
+    sched_dep_time = sched_hour + (sched_min / 60)
+  ) |> 
+  ggplot(aes(x = sched_dep_time, y = after_stat(density))) + 
+  geom_freqpoly(aes(color = cancelled), binwidth = 1/2, linewidth = 0.75)
+```
+
+#### Based on EDA, what variable in the diamonds dataset appears to be most important for predicting the price of a diamond? How is that variable correlated with cut? Why does the combination of those two relationships lead to lower quality diamonds being more expensive?
+
+カラットの大きさは当然のことながら値段と正の相関がある。cutでfacetを分けて回帰直線を引いてみると傾きはvery goodとpremiumはほぼ一緒に見える。  
+密度の描画でfairのpriceが他と一線を画す形状をしているのは、他のcutの質にくらべて2カラットや1.5カラットの大きさのダイヤモンドの割合が高く値段の平均を押し上げているからと考えられる。
+
+```{r}
+ggplot(diamonds, aes(x = carat, y = price)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_wrap(~cut)
+
+
+```
+
+
+
+
+#### Instead of exchanging the x and y variables, add coord_flip() as a new layer to the vertical boxplot to create a horizontal one. How does this compare to exchanging the variables?
+
+
+同じに見える。
+
+```{r}
+ggplot(mpg, aes(x = fct_reorder(class, hwy, median), y = hwy)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+
+
+#### One problem with boxplots is that they were developed in an era of much smaller datasets and tend to display a prohibitively large number of “outlying values”. One approach to remedy this problem is the letter value plot. Install the lvplot package, and try using geom_lv() to display the distribution of price vs. cut. What do you learn? How do you interpret the plots?
+
+データが大きくなると、特に正規分布したデータは外れ値（箱ひげ図だとひげの外側の値）が多くてでしまう。[登録が必要だが良さげな説明](https://towardsdatascience.com/letter-value-plot-the-easy-to-understand-boxplot-for-large-datasets-12d6c1279c97)があった。
+
+> outliers always account for 0.7%, no matter how big our dataset is. If we had a dataset with 100.000 rows, we’d have 700 outliers in our boxplot
+
+
+> Letter-Value Plots (or boxenplots) have been developed to overcome the problem of an inaccurate representation of outliers in boxplots.
+
+[ここ](https://www.karada-good.net/analyticsr/r-479/)を参考にしました。
+
+```{r}
+#install.packages("devtools")
+#devtools::install_github("hadley/lvplot")
+
+library("lvplot")
+
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_lv(aes(fill = after_stat(LV))) +
+  scale_fill_lv()
+
+```
+
+黒い四角の中の白い線が中央値を表しているということは何となくわかった。それを囲む黒い箱が四分位範囲。以下の計算式で線引くところを決めているみたい。nはデータ数。$d_1$は中央値を計算することになる。
+
+$$
+d_1 = (1+n)/2 \\
+d_i = (1 + [d_{i-1}])/2
+$$
+
+さっきも出てきたベタな箱ひげ図と比較すると白い線が中央値なのがよくわかる。
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_boxplot()
+```
+
+
+
+#### Create a visualization of diamond prices vs. a categorical variable from the diamonds dataset using geom_violin(), then a faceted geom_histogram(), then a colored geom_freqpoly(), and then a colored geom_density(). Compare and contrast the four plots. What are the pros and cons of each method of visualizing the distribution of a numerical variable based on the levels of a categorical variable?
+
+violin plot  
+>バイオリン図（バイオリンず、英: violin plot）は、数値データを描画する手法の一つであり、箱ひげ図の両脇に90度回転させたカーネル密度グラフを付加したものに近い。  
+とのことなので、データの分布や散らばりのイメージを持ちやすい。一方で、それぞれのクラス（fairやgoodなど）のサイズは直接比較できない。
+  
+histogram  
+それぞれのクラスのサイズとデータのばらつきは比較しやすい。サイズの小さいクラスがあるのと（今回のFairのように）そのクラスは見にくい。  
+
+freqpoly   
+ヒストグラムを折れ線にしたようなものなので、それぞれのクラスのサイズを直接比較しやすい。一方でヒストグラムと同様にやはりサイズの小さいクラスは見にくい。  
+  
+density
+色でクラスを分けて描画しているのでそれぞれのクラスがどう分布しているのか比較しやすい。一方でviolin plotと同様に密度の描画になるので、それぞれのクラスのサイズが度外視される。
+```{r}
+ggplot(diamonds, aes(x = cut, y = price)) +
+  geom_violin()
+
+ggplot(diamonds, aes(x = price)) +
+  geom_histogram() +
+  facet_grid(cut ~ .)
+
+ggplot(diamonds, aes(x = price)) + 
+  geom_freqpoly(aes(color = cut), binwidth = 500, linewidth = 0.75)
+
+
+ggplot(diamonds, aes(x = price)) + 
+  geom_density(aes(color = cut), linewidth = 0.75)
+```
+
+
+
+#### If you have a small dataset, it’s sometimes useful to use geom_jitter() to avoid overplotting to more easily see the relationship between a continuous and categorical variable. The ggbeeswarm package provides a number of methods similar to geom_jitter(). List them and briefly describe what each one does.
+
+ほとんど[ここ](https://brain-storm.space/ggbeeswarm/820/)に載っているのを見れば解決しそうなので多くは触れず次に行きます。geom_quasirandomがバラバラに（quasi random = あたかもランダムに）点をずらしてくれる。
+
+```{r}
+#install.packages("ggbeeswarm")
+library(ggbeeswarm)
+
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_boxplot(fill = "white") +
+  geom_quasirandom(aes(color = Species), size = 3) +
+  theme_classic()
+```
+
+
+
+### Two categorical variables
+二つのカテゴリ変数の関連を調べるときにはそのカテゴリの組み合わせを数えることになる。例えばgeom_countを使う。
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = color)) +
+  geom_count()
+```
+
+他には実際に数を数えるアプローチも取りうる。
+
+```{r}
+diamonds |> 
+  count(color, cut)
+```
+
+あるいはgeom_tileを使ってヒートマップを作成する。
+
+```{r}
+diamonds |> 
+  count(color, cut) |> 
+  ggplot(aes(x = color, y = cut)) +
+  geom_tile(aes(fill = n))
+```
+
+カテゴリ変数に順位をつけるためのパッケージとして[seriation](https://cran.r-project.org/web/packages/seriation/index.html)がある。またインタラクティブなヒートマップのライブラリとして[heatmaply](https://cran.r-project.org/web/packages/heatmaply/vignettes/heatmaply.html)が紹介されている。
+
+### Exercises
+
+#### How could you rescale the count dataset above to more clearly show the distribution of cut within color, or color within cut?
+
+2乗はイマイチだった（3乗はオーバーフローする）ので、逆に？正の平方根で描画してみたらちょっと良くなったように見える。
+
+```{r}
+diamonds |> 
+  count(color, cut) |> 
+  mutate(
+    n_sqrt = sqrt(n)
+  )|> 
+  ggplot(aes(x = color, y = cut)) +
+  geom_tile(aes(fill = n_sqrt))
+```
+
+
+#### What different data insights do you get with a segmented bar chart if color is mapped to the x aesthetic and cut is mapped to the fill aesthetic? Calculate the counts that fall into each of the segments.
+
+色別に見ると、G > E > F > H > D > I > Jの順番。またカットではどのセグメントでもIdeal > Premium >= very good > Good >> Fairに並んでいる。
+
+```{r}
+ggplot(diamonds, aes(x = color, fill = cut)) +
+  geom_bar()
+```
+
+
+
+#### Use geom_tile() together with dplyr to explore how average flight departure delays vary by destination and month of year. What makes the plot difficult to read? How could you improve it?
+
+なにも考えずに作ってみた。気になるのは以下二つ。  
+
+- monthが小数点でプロットされて直感的でない。    
+- destが100以上あり細分化され過ぎている。  
+
+```{r}
+nycflights13::flights |>
+  group_by(month, dest) |> 
+  summarize(
+    n = n(),
+    total_delay = sum(dep_delay, na.rm = TRUE),
+    avg_delay = total_delay / n,
+    .groups = "drop"
+  ) |> 
+  ggplot(aes(x = month, y = dest)) +
+  geom_tile(aes(fill = avg_delay))
+```
+
+表示する項目は変えないで（monthとdestを使って）表示を改善する考える。以下のように修正した。ただしまだy軸は読めない。  
+
+- monthが小数点でプロットされて直感的でない。  
+→pivotの際に文字列に変更してscale_x_descreteで並び順を指定した。    
+
+- destが100以上あり細分化され過ぎている。  
+→naを含んでいるdestを省いてみた。naを含むということは件数が少ないと予想され、avg_delayも少ないサンプル数に影響され極端な数字になることが考えられるので省いた方が参考になりやすいとも考えられる。
+
+```{r}
+nycflights13::flights |>
+  group_by(month, dest) |> 
+  summarize(
+    n = n(),
+    delay_total = sum(dep_delay, na.rm = TRUE),
+    delay_avg = delay_total / n,
+    .groups = "drop"
+  )|>
+  mutate(
+    month = as.character(month)
+  ) |>
+  #横持ちにしてNAの値を含む行を取り除いて縦持ちに直す
+  pivot_wider(id_cols = dest, names_from = month, values_from = delay_avg) |> 
+  drop_na(everything())|> 
+  pivot_longer(
+    cols = c("1","2","3","4","5","6","7","8","9","10","11","12"),
+    names_to = "month",
+    values_to = "avg_delay"
+  )|> ggplot(aes(x = month, y = dest)) +
+  geom_tile(aes(fill = avg_delay)) +
+  scale_x_discrete(limit = c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"))
+
+```
+
+あまり時間割けないのでここまでで止めて他の演習終わらせてから時間があれば戻ってくる。
+
+
+### Two numerical variables
+二つの量的変数のプロットにはこれまで散布図を使ってきた。例えばダイヤモンドだとカラットと価格に正の相関がみられた。
+
+```{r}
+smaller <- diamonds |> 
+  filter(carat < 3)
+```
+
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) +
+  geom_point()
+```
+
+データセットのサイズが大きくなると散布図は見にくくなってくるのでalphaを調節するのが一つの手段になる。
+
+```{r}
+
+ggplot(smaller, aes(x = carat, y = price)) + 
+  geom_point(alpha = 1 / 100)
+```
+
+alphaだけでは解決しない場合もあるので、二次元のビンを使う方法もある。geom_bin2d()とgeom_hex()がその描画をする。2次元のビンをつくり、色の濃さで数を表現する。
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) +
+  geom_bin2d()
+
+# install.packages("hexbin")
+ggplot(smaller, aes(x = carat, y = price)) +
+  geom_hex()
+```
+
+二つの連続値のうちの一つをあたかもカテゴリ変数のように扱って描画する方法がある。たとえばcaratを0.1刻みのビンに入れてそれぞれをカテゴリ変数のように扱って箱ひげ図として扱うこともできる。
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) +
+  geom_boxplot(aes(group = cut_width(carat, 0.1)))
+```
+
+このように箱ひげ図をつくると、こんどはそれぞれの箱の中に何個のobservationがあるのか分からない。それを乗り越えるためにそれぞれのビンをobservationに比例して細さを変える引数としてvarwidthがある。
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) +
+  geom_boxplot(aes(group = cut_width(carat, 0.1)), varwidth = TRUE)
+```
+
+
+### Exercises
+
+[Spoiler](https://rpubs.com/uky994/584376)
+
+
+#### Instead of summarizing the conditional distribution with a boxplot, you could use a frequency polygon. What do you need to consider when using cut_width() vs. cut_number()? How does that impact a visualization of the 2d distribution of carat and price?
+
+frequency polygonにはこれまでも登場していたgeom_freqpolyが使える。cut_width()とcut_number()は数値データをカテゴリデータに置き換えるための関数。cut_intervalもあるがここでは使わない（引数でnをとり、n個のグループに均等に分割するよう）。cut_widthではどれくらいの幅ずつで数値データを切り分けてカテゴリデータとして扱うか、cut_numberは何個に切り分けるかを指定する。cut_numberの方はそれぞれのカテゴリで観測数がなるべく均等になるように切り分ける。
+
+まずはcut_number。大きいカラットのほうが個数は少なく値段が高い傾向にあるのが分かる。
+```{r}
+# caratを大きさで5つのカテゴリに色分けする
+# cut_numberで切り分けているのでそれぞれのcaratのカテゴリはおよそ同じ個数ずつになっている。
+ggplot(diamonds,aes(color = cut_number(carat, 5), x = price)) +
+  geom_freqpoly(binwidth = 200, linewidth = 0.75) +
+  labs(color = "carat")
+```
+
+（余談）
+よく考えたら、同じ個数ずつということは密度に変えてもあまり図の形は変わらないのではと思って描画したらやはりpolygonのbinwidthの引数次第で結構近似しているっぽい。
+
+```{r}
+ggplot(diamonds,aes(color = cut_number(carat, 5), x = price)) +
+  geom_density(linewidth = 0.75) +
+  labs(color = "carat")
+```
+
+
+
+
+つぎにcut_width。1カラットずつの幅で５つのグループ（0から1カラットまで、2カラットまで等）にわけて描画した。個数がまちまちで2カラット以上のものは殆ど見えない。
+```{r}
+ggplot(diamonds,aes(color = cut_width(carat, 1, boundary = 1), x = price)) +
+  geom_freqpoly(binwidth = 500, linewidth = 0.75) +
+  labs(color = "carat")
+```
+
+
+#### Visualize the distribution of carat, partitioned by price.
+
+上記と同じ要領でpriceをカテゴリ変数に置き換える。priceはカテゴリ変数、caratは連続値なので、a categorical and a numerical variableのセクションで触れたものが使えそう。つまりfreqpoly、箱ひげ図やヴァイオリン図あたりをつかっていくことになりそう。ここではviolin図を使う。個数で区切る（cut_number）は目盛りがピンとこなかったので、2000ドルずつに区切る(cut_width)ようににする。
+
+```{r}
+ggplot(diamonds,aes(x = carat, y = cut_width(price, 2000, boundary = 0))) +
+  geom_violin() +
+  labs(y = "price")
+```
+
+
+
+#### How does the price distribution of very large diamonds compare to small diamonds? Is it as you expect, or does it surprise you? 
+
+カラットと値段の組み合わせなので、連続値と連続値の組み合わせになる。とりあえず2カラット以上のダイヤモンドで散布図を作ってみる。  
+カラットで区切ってみると値段に意外とばらつきがある。cutでfacetに分けてみても傾向は変わらず、同じ2カラット、同じ質に判定されているカットでも値段にばらつきがある。また、大きくなっても近似曲線があまり右肩上がりではない。
+
+```{r}
+diamonds |> 
+  filter(carat > 2) |> 
+  ggplot(aes(x = carat, y = price)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_grid(cut ~ .)
+
+```
+
+
+#### Combine two of the techniques you’ve learned to visualize the combined distribution of cut, carat, and price.
+
+上記でやったのをcaratのフィルターを外してフルに描画してみると近似曲線は右肩上がりが明確になった。
+
+```{r}
+diamonds |> 
+  ggplot(aes(x = carat, y = price)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  facet_grid(cut ~ .)
+
+```
+
+#### Two dimensional plots reveal outliers that are not visible in one dimensional plots. For example, some points in the following plot have an unusual combination of x and y values, which makes the points outliers even though their x and y values appear normal when examined separately. Why is a scatterplot a better display than a binned plot for this case?
+
+
+```{r}
+diamonds |> 
+  filter(x >= 4) |> 
+  ggplot(aes(x = x, y = y)) +
+  geom_point() +
+  coord_cartesian(xlim = c(4, 11), ylim = c(4, 11))
+
+```
+
+
+xとyはダイヤモンドの面の寸法を格納する変数で、面が丸の形と正方形の形のダイヤモンドであればx = yになり、高い相関がみられる。このように高い相関が期待できる二変数であれば一つの変数だけでは極端な値でなくても、二つの変数の組み合わせで奇妙な組み合わせになる場合があり、それが外れ値として明確に描画できる。
+
+
+#### Instead of creating boxes of equal width with cut_width(), we could create boxes that contain roughly equal number of points with cut_number(). What are the advantages and disadvantages of this approach?
+
+
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) + 
+  geom_boxplot(aes(group = cut_number(carat, 20)))
+```
+
+cut_numberを使うと、観測数（レコード数と言った方がピンと来る人もいるかも？、要はnrowの數）でだいたい均等になるように分割される。上記のcut_number(carat, 20)だと、caratを小さい順にずらっと並べてそれを均等に20個に分割するイメージ。
+  
+箱ひげ図はそれぞれのカテゴリのn（観測数）が分からないという欠点があるが、cut_numbersを用いることでそれを部分的にはクリアすることができる。つまり、全部の箱がだいたい同じ観測数で構成されていると考えて見ればよい。
+  
+一方で、この描画の方法の欠点は直感と反する描画になるという点だと考えられる。それぞれの箱がおなじ数の観測数を含んでいるのに箱の大きさが異なる。さらには、観測が密集している周辺の箱であるほど細くなり、疎な値だと箱が大きくなる。上記の描画で例示すると、一番右の箱（2カラットの手前から右端までに広がる箱は1カラット周辺にある細い箱や、0.5カラット以下のところの密集してつぶれかけている小さな箱と<u>ほぼ同数の観測を含んでいる。<\u>大きさが観測数と一致しないのは直感に反する描画なので解釈に苦労する（ここで実際に苦労した）非アナリストの人々に説明する際にも物凄い苦労をすると思う。
+
+それよりも、同じ幅で区切り(cut_width、以下の例だと0.125カラットずつ)、観測数に応じて箱の細さが変わるようにvarwidth = TRUEにした方が直感にマッチする描画になっていると感じる。
+
+```{r}
+ggplot(smaller, aes(x = carat, y = price)) + 
+  geom_boxplot(aes(group = cut_width(carat, 0.125)), varwidth = TRUE)
+```
+
+
+### 11.6 Patterns and models
+個々のモデリングでは、価格からカラットの大きさの影響を取り除いてカットと値段の関係をよりクリアに説明している。ただこのアプローチがイマイチ数理的に理解できない。self-contentでないような感じであんまりついていけていない。
+
+
+### 11.7 まとめ
+一つの変数の変動を見ていく方法、二つの変数の共変動を見る方法にふれた。変数が大量にある場合にはここまで丁寧に見れないかもしれないがこれがEDAの基礎になる。
+
+### おまけ
+
+#### ①外れ値をそのまま扱うと相関に影響を及ぼすことがある
+
+> 散布図を見てみると、外れ値なしのデータには相関関係がないのに、外れ値ありのデータでは、外れ値（x=100, y=106）に引きずられて相関係数が高く（相関関係が強く）なっているのがわかる。 ([ソース](https://toyokeizai.net/articles/-/539717))
+
+[同じ平均や共分散を持っていても全く違うデータセットがありうるということを説明するのに便利なデータセットすらある](https://blog.revolutionanalytics.com/2017/05/the-datasaurus-dozen.html)（from Anthony）。
+
+#### ②相撲の八百長の話
+
+ヤバい経済学（原題Freakonomics）の下敷きになっている[論文](https://www.aeaweb.org/articles?id=10.1257/000282802762024665)は相撲の八百長の可能性を、それがニュースになる10年程前に指摘してる。勝ち負けの二項分布の理論値の分布（正規分布になるはず）から勝ち数のヒストグラムが明らかに歪んでいることから八百長があるのではないか、といったもの。データを視覚化することで疑問が浮かび上がることを体感できる。[このnote](https://note.com/hankeism/n/n88ec626d921a)が内容を良くまとめていました。
+
+
