@@ -1,0 +1,49 @@
+---
+title: '9 Workflow: getting help'
+author: "Hikaru Hashimoto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Making a reprex
+
+y <- 1:4とmean(y)の行をコピーする（とクリップボードにコピーされる）。その状態でreprexを実行すると結果がViewerに表示される。引数をデフォルトのまま実行するとstylerをインストールしろと言われたので、styleをfalseにするかstylerのパッケージをインストールを迫られる。
+
+
+```{r}
+y <- 1:4
+mean(y)
+
+reprex::reprex()
+
+
+
+```
+
+xの引数としてreprexで出力したいコードを入れることもできる。その場合、コードを{}でくくる必要がある。
+
+```{r}
+reprex::reprex(x = {
+  x <- 1:4
+  y <- 2:5
+  x + y
+})
+
+```
+
+あるいは、inputの引数に出力したいコードを文字列のベクトルとして入れることもできる。
+```{r}
+
+reprex::reprex(input = c("x <- 1:4", "y <- 2:5", "x + y"))
+```
+
+```{r}
+# dputはデータフレームを再構築できるようにするための関数。
+dput(mtcars)
+```
+
+

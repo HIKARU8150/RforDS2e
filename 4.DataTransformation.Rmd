@@ -1,5 +1,5 @@
 ---
-title: "4.Data_transformation"
+title: "4.Data_transformation, 5. Workflow: code style"
 author: "Hikaru Hashimoto"
 date: "`r Sys.Date()`"
 output: html_document
@@ -77,6 +77,9 @@ n_distinctの関数が使えました。
 flights |> 
   distinct(month, day) |> 
   n_distinct()
+
+flights |> 
+  count(month, day)
 ```
 
 ### Q5
@@ -106,11 +109,7 @@ system.time(
 )
 
 
-system.time(
-  flights |> 
-    filter(month == 12) |> 
-    arrange(distance) 
-)
+
 
 ```
 
@@ -218,15 +217,14 @@ contains(match, ignore.case = TRUE, vars = NULL)
 
 ```{r}
 flights |> 
-  select(contains("TIME"k ignore.care = FALSE))
+  select(contains("TIME", ignore.case = FALSE))
 ```
 
 ### Q6
 
 ```{r}
 flights |> 
-  rename(air_time_min = air_time) |> 
-  relocate(air_time_min)
+  relocate(air_time_min = air_time)
 ```
 
 ### Q7
@@ -257,4 +255,275 @@ flights |>
 ```
 
 ## 4.5 groups
+
+### group_by()
+```{r}
+flights |> 
+  group_by(month)
+```
+
+### summarise()
+```{r}
+flights |> 
+  group_by(month) |> 
+  summarise(
+    avg_delay = mean(dep_delay, na.rm = TRUE),
+    n = n()
+  )
+
+```
+
+### slice_
+```{r}
+
+flights |> 
+  group_by(dest) |> 
+  slice_max(arr_delay, n = 1) |> 
+  relocate(dest)
+```
+
+#### Grouping by multiple variables
+```{r}
+daily <- flights |> 
+  group_by(year, month, day)
+
+daily
+```
+
+summarizeしたときになぜグループが一つ外れる仕組みにしているのかわからん。こんな実装になっているからにはなにか使用するうえでの利点があるはずなんだが。
+
+```{r}
+daily_flights <- daily |> 
+  summarize(
+    n = n(),
+    .groups = "drop_last"
+  )
+
+daily_flights
+```
+
+#### ungrouping
+summarizeを使えば.groupのargumentでgroupingを操作できるがsummarizeをしなくてもungroup()で解除できる。
+
+```{r}
+daily |> 
+  ungroup()
+```
+
+```{r}
+daily |> 
+  ungroup() |> 
+  summarize(
+    avg_delay = mean(dep_delay, na.rm = TRUE),
+    flights = n()
+  )
+```
+
+#### .by
+比較的新しいargument。すべてのverbで使える。これを使うとgroupしてungroupするような手間がなくなる。そうか、summarizeでgroupを解除するのは後でungroupをする手間を省略するためか。
+```{r}
+flights |> 
+  summarize(
+    delay = mean(dep_delay, na.rm = TRUE),
+    n = n(),
+    .by = c(origin, dest)
+  )
+```
+
+### Exercises
+
+#### 1
+まずはシンプルにキャリアごとの遅延を見るためにキャリアでグループしたものを見てみる。
+```{r}
+flights |> 
+  group_by(carrier) |>
+  summarize(
+    avg_arr_delay = mean(arr_delay, na.rm = TRUE),
+    n = n()
+  ) |> 
+  arrange(-avg_arr_delay)
+
+```
+
+F9が平均の到着遅延が多い。次点でFL。これだけで冒頭の質問のwhich carrier has the worst average delays?には一応答えたことになる。空港が悪いのかキャリアが悪いのかのchallenge問題はもう少し深堀りしないとダメ。たとえば到着空港でグループを作って遅延を見る。
+
+```{r}
+flights |> 
+  group_by(dest) |> 
+  summarize(
+    avg_arr_delay = mean(arr_delay, na.rm = TRUE),
+    n = n()
+  ) |> 
+  arrange(desc(avg_arr_delay))
+```
+
+じゃあ遅延の多い空港に飛ばしている飛行機を提供しているキャリアが結果的に遅延多いということになってしまうのか？遅延の多い空港上位３つを抽出してみる。
+
+```{r}
+flights |> 
+  filter(dest %in% c("CAE", "TUL", "OKC")) |> 
+  group_by(carrier) |> 
+  summarise(n = n())
+```
+
+EVが殆ど飛ばしている。んでEVは遅延多いキャリアで3位になっている。
+
+#### 2
+```{r}
+view(flights)
+flights |> 
+  group_by(origin) |> 
+  slice_max(dep_delay, n = 1)
+```
+
+#### 3
+x軸とy軸にどのような変数を持ってくるか。
+```{r}
+ggplot(
+  data = flights,
+  mapping = aes(x = dep_time, y = dep_delay)
+) + 
+  geom_point(na.rm = TRUE)
+```
+
+
+#### 4
+ヘルプの中に以下がありました。
+A negative value of n or prop will be subtracted from the group size. For example, n = -2 with a group of 5 rows will select 5 - 2 = 3 rows; prop = -0.25 with 8 rows will select 8 * (1 - 0.25) = 6 rows.
+月でグループを作ってn=1にするとそれぞれの月から1つずつ抜くので12行できるが、-2にすると12-2で10行になる。
+```{r}
+# マイナスにするとgroupが関係なくなる？
+flights |> 
+  group_by(month)|> 
+  slice_min(arr_delay, n =-1, with_ties = FALSE) |> 
+  arrange(arr_delay) |> 
+  relocate(arr_delay)
+```
+
+#### 5
+count() lets you quickly count the unique values of one or more variables: df %>% count(a, b) is roughly equivalent to df %>% group_by(a, b) %>% summarise(n = n()). count() is paired with tally(), a lower-level helper that is equivalent to df %>% summarise(n = n()). Supply wt to perform weighted counts, switching the summary from n = n() to n = sum(wt).  
+
+sort	
+If TRUE, will show the largest groups at the top.
+```{r}
+flights |> 
+  count(month, sort = FALSE)
+```
+
+
+#### 6
+```{r}
+df <- tibble(
+  x = 1:5,
+  y = c("a", "b", "a", "a", "b"),
+  z = c("K", "K", "L", "L", "K")
+)
+```
+
+a.  
+group_by()はグルーピングするだけなので、アウトプット自体は変わらないのでは？  
+→Group y[2]にはなるがアウトプットの見かけは一緒  
+
+```{r}
+df |> 
+  group_by(y)
+```
+
+
+b.  
+arrangeはデフォルトだと小さい順に並び変えるので、yをアルファベット順に並べるかな？group_byは見かけ（これだけのアウトプット）は変わらないがtibbleにグループを付与している。arrangeはアウトプットが並び替えられるがグループ等はない。  
+→あってました 
+
+```{r}
+df |> 
+  arrange(y)
+```
+
+
+c  
+yでグループ化して、aとbに分けて、xの値の平均を求めているはず。aはxの平均が8/3、bはxの平均が7/2だと思う。  
+
+```{r}
+df |> 
+  group_by(y) |> 
+  summarize(mean_x = mean(x))
+```
+
+d
+yとzでgroupにしているから、aのKチームとaのLチームとbのKチームにグループ化しているのかな。それでそれぞれのグループでxの平均を算出している。メッセージはzのグループ解除についての言及になるはずだから、.groupsのargumentで明示すれば消える。
+→あってました
+```{r}
+df |> 
+  group_by(y, z) |> 
+  summarize(mean_x = mean(x))
+```
+
+e
+アウトプットの見かけは同じだが、.groupsのargumentでdropが指定されているので、全てのグループが解除されているはず。一方でdではdrop_lastの挙動。
+→あってました
+
+```{r}
+df |> 
+  group_by(y, z) |> 
+  summarize(mean_x = mean(x), .groups = "drop_last")
+```
+
+f
+summarizeのほうはdと同じなので割愛。mutateのほうはmean_xの変数が追加される形になるけど、group_byと組み合わせたの試したことない。グループ作ってそれの平均求めてねってことなんだから結果は一緒かな？
+→ちがった。元のtibbleの形は残しつつ津、それぞれのレコードにそれぞれの所属するグループのmeanを入れている。
+```{r}
+df |> 
+  group_by(y, z) |> 
+  mutate(mean_x = mean(x))
+```
+
+
+### Case study
+ABは打席数(at bat)でHはヒット数。performanceは打率を計算していてnは打席数。
+
+ともすると「打席数が増えるほど打率が上がる」ように見えるが現実はそうではなく、解釈としては「優秀な選手には沢山打席に立つ機会が与えられる一方で、優秀でない選手にはあまり機会が与えられない」というほうが正しい。
+```{r}
+batters <- Lahman::Batting |> 
+  group_by(playerID) |> 
+  summarize(
+    performance = sum(H, na.rm = TRUE) / sum(AB, na.rm = TRUE),
+    n = sum(AB, na.rm = TRUE)
+  ) 
+
+batters |> 
+  filter(n > 100) |> 
+  ggplot(aes(x = n, y = performance)) +
+  geom_point(alpha = 1/10) +
+  geom_smooth(se = FALSE)
+```
+
+# Chapter 5
+
+## Ecercises
+```{r}
+flights |> 
+  filter(dest=="IAH") |> 
+  group_by(year, month, day) |> 
+  summarize(
+    n = n(),
+    delay = mean(arr_delay, na.rm=TRUE),
+  ) |> 
+  filter(n>10)
+
+flights |> 
+  filter(
+    carrier == "UA",
+    dest %in% c("IAH", "HOU"),
+    sched_dep_time > 0900,
+    sched_arr_time < 2000
+  ) |> 
+  summarise(
+    delay = mean(arr_delay, na.rm=TRUE),
+    cancelled = sum(is.na(arr_delay)),
+    n = n()
+  ) |> 
+  filter(n>10)
+  
+```
+
 

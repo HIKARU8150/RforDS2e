@@ -1,0 +1,91 @@
+---
+title: "8 Data Import"
+author: "Hikaru Hashimoto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+```
+
+# 8.2.4 Exercise
+
+## What function would you use to read a file where fields were separated with "|"?
+
+read_delim is a suitable option for files separated with "|".
+```{r}
+read_delim(I("a|b\n1.0|2.0"), delim = "|")
+
+
+?read_fwf
+```
+
+## Apart from file, skip, and comment, what other arguments do read_csv() and read_tsv() have in common?
+
+There are many they have in common.
+
+col_names = TRUE,
+col_types = NULL,
+col_select = NULL,
+id = NULL,
+locale = default_locale(),
+na = c("", "NA"),
+quoted_na = TRUE,
+quote = "\"",
+trim_ws = TRUE,
+n_max = Inf,
+guess_max = min(1000, n_max),
+name_repair = "unique",
+num_threads = readr_threads(),
+progress = show_progress(),
+show_col_types = should_show_types(),
+skip_empty_rows = TRUE,
+lazy = should_read_lazy()
+
+## What are the most important arguments to read_fwf()?
+固定長ファイルを読み込むための関数。[このページ](https://dichika.hateblo.jp/entry/2019/02/19/155517)が参考になりそう。fwf_で始まるargumentsがどの長さで読み取るかを指定するために使われるのでこれをいかに使うかがポイントになりそう。
+
+## strings in a CSV containing commas.  
+quoteの引数を使う。
+```{r}
+read_csv(
+  "x,y\n1, 'a,b'",
+  quote = "'"
+)
+
+
+?read_csv
+```
+
+
+## Identify what is wrong with each of the following
+```{r}
+read_csv("a,b\n1,2,3\n4,5,6")
+read_csv("a,b,c\n1,2\n1,2,3,4")
+read_csv("a,b\n\"1")
+read_csv("a,b\n1,2\na,b")
+read_csv("a;b\n1;3")
+```
+
+## 
+```{r}
+annoying <- tibble(
+  `1` = 1:10,
+  `2` = `1` * 2 + rnorm(length(`1`))
+)
+
+
+#a
+annoying[1]
+
+#b
+
+
+
+
+
+```
+

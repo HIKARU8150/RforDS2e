@@ -1,0 +1,781 @@
+---
+title: "10.Layers"
+author: "Hikaru Hashimoto"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(patchwork)
+```
+
+## Aesthetic mappings
+
+mpgのデータセットを使って、aesの引数を替えながら描画をしてみる。x軸にdisplを、y軸にhwyをプロットし画なら、カテゴリカル変数のclassをもう一つの引数にして描画する。最初はcolor。
+
+
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, color = class)) +
+  geom_point()
+```
+
+次にshape。6個以上はshape分けてプロットできないと警告が出る。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, shape = class)) +
+  geom_point()
+```
+
+つぎにsizeとalpha。どちらもカテゴリカル変数にはお薦めされないと警告が出る。sizeもalphaも何かしらの順位を想定しているが、カテゴリカル変数には一般的には順位は無いため。
+
+```{r}
+plt_up <- mpg |> 
+  ggplot(aes(x = displ, y = hwy, size = class)) +
+  geom_point()
+
+plt_down <- mpg |> 
+  ggplot(aes(x = displ, y = hwy, alpha = class)) +
+  geom_point()
+
+plt_up / plt_down
+```
+
+ココまではggplotの中のaesの引数でグラフィックを変更してきたが、ggplotではなく、続くgeom_の中で直接変更することもできる。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(color = "blue")
+```
+
+### Exercises
+
+#### Create a scatterplot of hwy vs. displ where the points are pink filled in triangles.
+使うシンボルをshapeで指定する。番号15以降であればcolorの引数でで色を指定できる。サイズ変えてちょっと見やすくしたがそれでもピンク見にくくない？
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(shape = 17, color = "pink", size = 3) +
+  theme_bw()
+```
+
+
+#### Why did the following code not result in a plot with blue points?
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy, color = "blue"))
+```
+
+the color argument should be outside the aes argument.
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy), color = "blue")
+```
+
+#### What does the stroke aesthetic do? What shapes does it work with? (Hint: use ?geom_point)
+
+The size of the filled part is controlled by size, the size of the stroke is controlled by stroke. Each is measured in mm.
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(shape = 24, fill = "pink", stroke = 2) +
+  theme_bw()
+```
+
+#### What happens if you map an aesthetic to something other than a variable name, like aes(color = displ < 5)? Note, you’ll also need to specify x and y.
+
+提示されているdispl < 5だとTとFで色分けしてくれる。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, color = displ < 5)) +
+  geom_point() +
+  theme_bw()
+```
+
+### Geometric objects
+Geometric objects（geom_のやつ）を変えると同じデータでも違った描画ができる。ggplotの中で引数として設定したものはgeom_以降すべてに使われるグローバル引数、になり、geom_の中で指定する引数はそのgeometric objectsの中だけで有効なローカルな引数になる。ただしすべてがグローバルに機能するわけではない。以下だとcolorはグローバルな引数（drvの変数で色分けする）、linetypeはgeom_pointでは無視されている。線が無いから。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, color = drv, linetype = drv)) +
+  geom_point() + 
+  geom_smooth()
+```
+
+geom_smoothのように、複数の行のデータを描画できるgeometric objectsはgroupの引数を使うことでgroupで分けて描画できる。groupの引数だと凡例を表示しない（colorの引数も同じようなことができるがこちはらデフォルトで凡例を表示する）。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_smooth(aes(group = drv))
+```
+
+やや反復になるがgeomの関数のなかに指定したものはローカルになるる。以下の例だと散布図だけclassで色分けされ、smoothは一色。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(aes(color = class)) +
+  geom_smooth()
+```
+
+
+同様に、geomにそれぞれ別のデータを入れることもできる。以下では最初はmpgの全てのデータをgeom_pointで描画した後に2seaterでフィルターをかけて赤い色で描画している。geomの中でパイプを使うの初めて見たのですごく勉強になる。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() +
+  # 赤い丸をプロットする
+  geom_point(
+    data = mpg |> filter(class == "2seater"),
+    color = "red"
+  ) +
+  # 赤い丸の外周に〇を足すプロット
+  geom_point(
+    data = mpg |> filter(class == "2seater"),
+    shape = "circle open", size = 3, color = "red"
+  )
+```
+
+30種類以上のgeom_がデフォルトでもあるが、それ以外にもサードパーティが実装しているものもあるので必要に応じてライブラリを探してみるといい。ggridgesを参考に取り上げられている。ggridgesは四分位数を引くこともできて、情報量の多い描画ができる。説明に時間が掛かるがいい図ができることがある。
+
+```{r}
+#install.packages("ggridges")
+
+library(ggridges)
+
+mpg |> 
+  ggplot(aes(x = hwy, y = drv, fill = drv, color = drv)) +
+  geom_density_ridges(alpha = 0.5, show.legend = FALSE)
+```
+
+その他、ggplot2のレファレンスは[こちら](https://ggplot2.tidyverse.org/reference/)
+
+### Exercises
+
+#### What geom would you use to draw a line chart? A boxplot? A histogram? An area chart?
+折れ線グラフはgeom_line()で描ける。[参考] (https://stats.biopapyrus.jp/r/ggplot/geom-line.html)
+
+参考ページから仮想データを貰ってきて、5 匹のラットにそれぞれ A 餌、B 餌、C 餌、D 餌、E 餌を与えて、10 日間の体重を測定したデータを、行列型で作成する。それを変形してtreatごとに分けて折れ線で描画。
+```{r}
+x <- matrix(c(120, 118, 123, 120, 121, 119, 118, 121, 120, 120,
+              121, 135, 145, 158, 173, 184, 198, 214, 209, 212,
+              121, 130, 141, 148, 157, 168, 177, 189, 201, 210,
+              119, 120, 120, 123, 125, 127, 141, 163, 180, 224,
+              120, 128, 137, 144, 153, 163, 171, 179, 187, 199), ncol = 5)
+
+colnames(x) <- c("A", "B", "C", "D", "E")
+
+treat_log <- data.frame(x)|>
+  mutate(
+    day = 1:10
+  ) |> 
+  pivot_longer(
+    cols = c("A", "B", "C", "D", "E"),
+    names_to = "treat",
+    values_to = "weight"
+  )
+
+treat_log |> 
+  ggplot(aes(x = day, y = weight, color = treat)) +
+  geom_line()
+```
+
+#### What does show.legend = FALSE do here? What happens if you remove it? Why do you think we used it earlier?
+
+show.legendをTRUEにする（はるいは引数を明記しないとデフォルトの値がTURE）とdrvが凡例として描画される。必要ないと思ったら取ればいいじゃん。
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_smooth(aes(color = drv))
+```
+
+
+#### What does the se argument to geom_smooth() do?
+
+se：  
+Display confidence interval around smooth? (TRUE by default, see level to control.)
+
+[標準誤差（standard error）](https://ja.wikipedia.org/wiki/%E6%A8%99%E6%BA%96%E8%AA%A4%E5%B7%AE)何回か勉強しようとしたやつだけど正直よく分かってない。[これ](https://best-biostatistics.com/summary/sd-se-chigai.html)が標準偏差と標準誤差を比較して解説していてわりかしクリアだった。「標準偏差は、データのバラツキを表すパラメーターです。
+標準誤差は、推定量のバラツキ（=精度）を表します。」とのこと。描画だと線本体？の周りのもやの部分のON/OFFの制御。levelの引数で信頼区間（もやもやの大きさ）を設定できる（デフォルトが0.95）。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(aes(color = class)) +
+  geom_smooth(se=TRUE, level = 0.95)
+```
+
+
+#### Recreate graphs
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() + 
+  geom_smooth(se=FALSE)
+```
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() +
+  geom_smooth(aes(group = drv), se = FALSE)
+```
+
+```{r}
+
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, color = drv)) +
+  geom_point()+
+  geom_smooth(se = FALSE)
+```
+
+```{r}
+
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(aes(color = drv)) + 
+  geom_smooth(se = FALSE)
+```
+
+```{r}
+
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point(aes(color = drv)) +
+  geom_smooth(aes(linetype = drv), se = FALSE)
+```
+
+```{r}
+# 大きめ白丸をプロットしてから一回り小さい色付きのプロットをする
+mpg |> 
+  ggplot(aes(x = displ, y = hwy, color = drv)) +
+  geom_point(size = 4, color = "white") +
+  geom_point()
+
+```
+
+
+## Facets
+カテゴリ変数ごとにサブプロットに分ける機能としてfacetがある。以下だとcylの変数でfacetを分けている。分けるのに使いたい変数を~変数名でfacet_wrapの引数にする。
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_wrap(~cyl)
+```
+
+また、二つの変数でfacetを作りたい場合はfacet_gridを使う。その場合は引数のformulaが行~列になる。
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl)#行方向がdrv, 列がcylでfacetを行う。
+```
+
+ここまではfacetのそれぞれのプロットはxとyのスケールが揃っていた。これは比較の時にはいいが、ときには表現を制限してしまう。それぞれのプロットごとにスケールを自由に持ちたいときにはscalesの引数を指定する。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_point() +
+  facet_grid(drv ~ cyl, scales = "free") #free_x, free_yも可能。
+```
+
+
+### Exercises
+
+#### What happens if you facet on a continuous variable?
+みんな大好きアヤメのデータセットで試してみる。一応描画はできるが、facetが細かくなりすぎていい方法なのかよくわからない。
+
+```{r}
+iris |> 
+  ggplot(aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  facet_wrap(~Petal.Width)
+```
+
+#### What do the empty cells in plot with facet_grid(drv ~ cyl) mean? Run the following code. How do they relate to the resulting plot?
+
+観測データが無いことを意味している。以下の散布図で黒い点があるところにデータがある。言い換えると、以下の図の座標(r, 4), (r,5), (4, 5), (*, 7)のデータは存在しない。そのため該当の部分はracet_grid(drv ~ cyl)でも空欄になる。
+```{r}
+mpg |> 
+  ggplot() +
+  geom_point(aes(x = drv, y = cyl))
+```
+
+#### What plots does the following code make? What does . do?
+helpから：  
+"the dot in the formula is used to indicate there should be no faceting on this dimension (either row or column)."  
+
+「.」は無理やり日本語に訳すと「何も用いない」くらいになりそう。facet_grid(drv ~ .) だと行方向はdrvの変数でグループ分けするが列方向は何もしないといった描画になる。同様にfacet_grid(. ~ cyl)は列方向はcylでグループ分けするが行方向は何もしない描画になる。前者は横に長い描画、後者は縦に長い描画になる。
+
+
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_grid(. ~ cyl)
+```
+
+#### What are the advantages to using faceting instead of the color aesthetic?
+
+facetで分けることでsub-groupが見やすくなり、それぞれのグループ内でどのようにデータが分布しているのかが分かりやすくなる。また、scaleを調整できるので、それぞれのsub-groupで分かりやすい描画がしやすくなる。ただし、データ全体を眺めることができないので、「全体の中でそれぞれのsub-groupがどのあたりに位置付けられるのか」といった全体感を持ちたい場合は色分けして全体でプロットしたほうが良いかもしれない。  
+また、データが多くなった場合を考えると、全体の描画で色分けしても（特にcolorに用いているカテゴリカル変数の種類が増える場合）ごちゃごちゃして見えそうなので、全体よりもfacetで細分化してsub-groupごとに見ていったほうが有益な情報が取れるかもしれない。
+
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy)) + 
+  facet_wrap(~ class, shrink = TRUE)
+```
+
+#### Read ?facet_wrap. What does nrow do? What does ncol do? What other options control the layout of the individual panels? Why doesn’t facet_grid() have nrow and ncol arguments?
+
+ncolとnrowはfacetを行う際の行数と列数を指定する。  
+as.table:表示の順番、デフォルトがTRUEでFALSEにすると反転する。
+switch:ラベルの表示位置を替えられる(strip.positionを使うようにwarningが出る)。
+strip.position:ラベルをどこに表示するかを決められる。
+labeller:ラベルの表示をコントロール
+dir:どう図を並べていくか
+
+```{r}
+#?facet_wrap
+```
+
+#### Which of the following plots makes it easier to compare engine size (displ) across cars with different drive trains? What does this say about when to place a faceting variable across rows or columns?
+
+facet_grid(drv ~ .)の方が、ヒストグラムの縦が一致している（３つのグラフの軸が揃っている）ので、４とｆとｒの間のエンジンサイズ(displ)の分布の違いが掴みやすいと感じる。  
+y軸方向の違いがより重要なときにはfacet_grid(. ~ drv)の方が見やすいのでは。ヒストグラムで無理やり例えるとy軸にdisplを設定してx軸でcountする形のヒストグラムならfacet_grid(. ~ drv)にした方が比べ安い。
+
+```{r}
+ggplot(mpg, aes(x = displ)) + 
+  geom_histogram() + 
+  facet_grid(drv ~ .)
+
+ggplot(mpg, aes(y = displ)) + 
+  geom_histogram() +
+  facet_grid(. ~ drv)
+```
+
+#### Recreate the following plot using facet_wrap() instead of facet_grid(). How do the positions of the facet labels change?
+
+```{r}
+ggplot(mpg) + 
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_grid(drv ~ .)
+
+```
+
+my answer
+```{r}
+mpg |> 
+  ggplot() +
+  geom_point(aes(x = displ, y = hwy)) +
+  facet_wrap(~ drv, ncol = 1, strip.position = "right")
+
+```
+
+## Statistical transformations
+
+以下の棒グラフでは、Idealなカットのダイアモンドが多いことが分かる。
+```{r}
+diamonds |> 
+  ggplot(aes(x = cut)) +
+  geom_bar()
+```
+
+ただ、よく考えて見ると上記の図のy軸はデータセットの中にある数字ではなく描画のために計算されている。この場合ではそれぞれのクラス（FairとかGood）の頻度を数えている。このように描画の前に数えたり集計を行うことを"stat"（statistical transformation）と呼ぶ。
+
+土の描画でどのstatが行われているかはそれぞれのgeomの中のstatの引数を見ればわかる。geom_barのstatのデフォルトの引数はstat_count()になっている。それぞれのgeomがそれぞれのデフォルトのstatを持っている。もちろんデフォルトから変更することもできる。以下ではaesの中でy軸にafter_statの引数でy軸を割合に変えている。
+
+```{r}
+diamonds |> 
+  ggplot(aes(x = cut, y = after_stat(prop), group = 1)) +
+  geom_bar()
+```
+
+stat_summary()の関数でstatに力を入れて描画することもできる。他にもstatsがあるからいろいろ調べて見てくれよな！
+```{r}
+ggplot(diamonds) +
+  stat_summary(
+    aes(x = cut, y = depth),
+    fun.min = min,
+    fun.max = max,
+    fun = median
+  )
+```
+
+
+### Exercises
+
+#### What is the default geom associated with stat_summary()? How could you rewrite the previous plot to use that geom function instead of the stat function?
+
+geom_pointrangeでいけそうなんだが引数が分かんないので飛ばす。描画に興味が無さ過ぎて辛い。geom_pointrangeはstatが"identity"なのでこれをsummaryに変えるのでは？
+  
+geom_pointrangeの中の引数でstat = "summary"にしたあとに統計量をfun, fun.max, fun.minで指定すればいいっぽい。
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = depth)) +
+  geom_pointrange(stat = "summary", fun = "median", fun.max = "max", fun.min = "min")
+
+```
+
+
+
+#### What does geom_col() do? How is it different from geom_bar()?
+みっけた。  
+geom_bar() uses stat_count() by default: it counts the number of cases at each x position. geom_col() uses stat_identity(): it leaves the data as is.
+   以上、[ソースはここ](https://ggplot2.tidyverse.org/reference/geom_bar.html)
+
+
+geom_col()の方が後に開発されたみたいでこんな記述がある: 
+(Note also the new geom_col() which is short-hand for geom_bar(stat = "identity"), contributed by Bob Rudis.)  
+[ソースはここ](https://posit.co/blog/ggplot2-2-2-0-coming-soon/)
+
+感覚的にはgeom_bar()はヒストグラム的な使い方。ヒストグラムはxに連続値を取ってビンで区切っているがgeom_barはxにカテゴリ変数を取るのが違いになると思う。geom_col()はaesでyの指定してidentityでそのまま持ってきて描画するイメージかな。geom_barでstat = "identity"で書けば同じものも書ける。
+
+```{r}
+mean_city <- mpg |> 
+  group_by(class) |> 
+  summarise(cty_m = mean(cty))
+
+mean_city |> 
+  ggplot(aes(x = class, y = cty_m)) +
+  geom_bar(stat = "identity")
+
+mean_city |> 
+  ggplot(aes(x = class, y = cty_m)) +
+  geom_col()
+```
+
+
+#### Most geoms and stats come in pairs that are almost always used in concert. Make a list of all the pairs. What do they have in common? (Hint: Read through the documentation.)
+
+数が多すぎるので馴染みがありそうなものだけ。geom_のデフォルトのstatの引数が以下だが、stat_のデフォルトの引数と一対一対応というわけではない（identityが複数出てきていることからもわかる）。
+[この記事](https://qiita.com/swathci/items/b08496d863bca4b479b3)が勉強になりそう。あんまり真面目に読んでいないけど。
+
+|  geom  |  stat  |
+| :----: | :----: |
+|  bar  |  count  |
+|  col  |  identity  |
+|  boxplot  |  boxplot  |
+|  point  |  identity  |
+|  jitter  |  identity  |
+|  density  |  density  |
+|  histogram  |  bin  |
+
+
+
+#### What variables does stat_smooth() compute? What arguments control its behavior?
+
+stat_smooth() provides the following variables, some of which depend on the orientation:
+  
+after_stat(y) or after_stat(x)
+Predicted value.
+  
+after_stat(ymin) or after_stat(xmin)
+Lower pointwise confidence interval around the mean.
+  
+after_stat(ymax) or after_stat(xmax)
+Upper pointwise confidence interval around the mean.
+  
+after_stat(se)
+Standard error.
+  
+  
+Most aesthetics are mapped from variables found in the data. Sometimes, however, you want to delay the mapping until later in the rendering process. ggplot2 has three stages of the data that you can map aesthetics from, and three functions to control at which stage aesthetics should be evaluated.
+
+after_stat() replaces the old approaches of using either stat(), e.g. stat(density), or surrounding the variable names with .., e.g. ..density...
+
+[上記の同じページ](https://qiita.com/swathci/items/b08496d863bca4b479b3#stat_smooth)にstat_smoothのサンプルあり。
+  
+  
+引数seで信頼区間のオンオフの切り替えができる。またmethodの引数でどの方法で線を引くか変更できる。    
+method = "loess"：局所多項回帰, loess, lowess(locally-weighted scatterplot smoother)（局所重み付き散布図平滑化））  
+method = "lm"：線形回帰  
+method = "glm"：一般化線形回帰  
+
+拾ってきたものをサンプルとして載せておく。
+
+```{r}
+# after_statの例
+ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  stat_smooth(geom = "ribbon", aes(ymin = after_stat(ymin),
+                                   ymax = after_stat(ymax)), alpha = 0.2)
+
+# methodの引数
+ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  stat_smooth(method = "loess", formula = y ~ x)
+
+ggplot(data = iris, aes(x = Sepal.Length, y = Sepal.Width)) +
+  geom_point() +
+  stat_smooth(method = "lm", formula = y ~ x)
+
+
+```
+
+
+#### In our proportion bar chart, we need to set group = 1. Why? In other words, what is the problem with these two graphs?
+
+たぶん[これ](https://stackoverflow.com/questions/39878813/ggplot-geom-bar-meaning-of-aesgroup-1)が直接言及しているもの。  
+
+group="whatever" is a "dummy" grouping to override the default behavior, which (here) is to group by cut and in general is to group by the x variable. The default for geom_bar is to group by the x variable in order to separately count the number of rows in each level of the x variable.
+
+デフォルトだとそれぞれのクラス（fair, goodなど）ごとに割合を出してしまうので、group = ナントカでgroupingを無視させる必要がある。あるいは以下の方法で計算もできるとのこと。
+
+```{r}
+ggplot(diamonds, aes(x = cut, y = after_stat(count/sum(count)))) + 
+  geom_bar()
+
+
+ggplot(diamonds, aes(x = cut, fill = color, y = after_stat(count/sum(count)))) + 
+  geom_bar()
+
+```
+
+以下で何が計算されているかが見れる。
+
+```{r}
+p <- ggplot(diamonds, aes(x = cut)) + 
+  stat_count()
+ggplot_build(p)
+
+# layer_data(p)でも出せる。
+```
+
+
+## 10.6 Position adjustments
+positionの引数でどう並べるかを操作するよ。"idendity", "dodge"と"fill"が選べる。  
+
+
+identityの例。ｘのカテゴリごとに積み上げる。
+```{r}
+# 色を上書きしてしまうので意味ない
+mpg |> 
+  ggplot(aes(x = drv, fill = class)) +
+  geom_bar(position = "identity")
+
+# alphaを設定する
+mpg |> 
+  ggplot(aes(x = drv, fill = class)) +
+  geom_bar(alpha = 1/5, position = "identity")
+
+# colorの引数が上手くいかない
+mpg |> 
+  ggplot(aes(x = drv, color = class)) +
+  geom_bar(position = "identity")
+
+# fillをNAにする
+mpg |> 
+  ggplot(aes(x = drv, color = class)) +
+  geom_bar(fill = NA, position = "identity")
+```
+
+
+fillの例。一つずつのカテゴリを合計1になるように調整している。
+```{r}
+mpg |> 
+  ggplot(aes(x = drv, fill = class)) +
+  geom_bar(position = "fill")
+```
+
+
+dodgeの例。それぞれのclassで並べる。
+```{r}
+mpg |> 
+  ggplot(aes(x = drv, fill = class)) +
+  geom_bar(position = "dodge")
+```
+
+
+棒グラフでは機能しないがjitterというpositionの引数もある。これは散布図のときにランダムなｎノイズを加えることで点が重なるのを防ぐもの。このpositionの引数をデフォルトにしたgeom_jitterも存在する。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = displ, y = hwy)) +
+  geom_jitter()
+```
+
+### Exercises
+
+#### What is the problem with the following plot? How could you improve it?
+cityもhwyも離散値で連続値でないのであんまり綺麗な散布図になっていないので直前に出てきたjitterにすればよいのでは？
+```{r}
+ggplot(mpg, aes(x = cty, y = hwy)) + 
+  geom_point()
+```
+
+```{r}
+ggplot(mpg, aes(x = cty, y = hwy)) + 
+  geom_jitter()
+```
+
+#### What, if anything, is the difference between the two plots? Why?
+
+デフォルトがposition = "identity"なので合っても無くても一緒。
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point()
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(position = "identity")
+```
+
+#### Compare and contrast geom_jitter() with geom_count().
+geom_jitter(
+  mapping = NULL,
+  data = NULL,
+  stat = "identity",
+  position = "jitter",
+  ...,
+  width = NULL,
+  height = NULL,
+  na.rm = FALSE,
+  show.legend = NA,
+  inherit.aes = TRUE
+)
+
+
+geom_count(
+  mapping = NULL,
+  data = NULL,
+  stat = "sum",
+  position = "identity",
+  ...,
+  na.rm = FALSE,
+  show.legend = NA,
+  inherit.aes = TRUE
+)
+
+
+
+Examples  
+statがsumかidentityかが違い。その証拠にgeom_point(stat = "sum")にすると同じ描画になる。geom_pointではデフォルトだとただ点が重なるだけだが、geom_countだと重なっている点（？）の數に応じて丸が大きくなる。
+```{r}
+ggplot(mpg, aes(cty, hwy)) +
+ geom_point()
+```
+
+
+```{r}
+ggplot(mpg, aes(cty, hwy)) +
+ geom_count()
+```
+
+#### What’s the default position adjustment for geom_boxplot()? Create a visualization of the mpg dataset that demonstrates it.
+
+dodge2ってポジション。dodgeと違い箱ひげ図に隙間があく。
+
+```{r}
+mpg |> 
+  ggplot(aes(x = class, y = hwy, fill = drv)) +
+  geom_boxplot(position = "dodge2")
+```
+
+```{r}
+mpg |> 
+  ggplot(aes(x = class, y = hwy, fill = drv)) +
+  geom_boxplot(position = "dodge")
+```
+
+## 10.7 Coordinate systems
+デフォルトのCartesian coordinateはxとyを独立して操作できる。  
+
+coord_quickmap()はアスペクト比にそって描画する。
+
+```{r}
+nz <- map_data("nz")
+
+ggplot(nz, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(fill = "white", color = "black")+
+  coord_quickmap()
+```
+
+coord_polar()はコックスコームチャートを出力できる。
+
+```{r}
+bar <- ggplot(data = diamonds) +
+  geom_bar(
+    mapping = aes(x = clarity, fill = clarity),
+    show.legend = FALSE,
+    width = 1
+  ) +
+  theme(aspect.ratio = 1)
+
+bar + coord_flip()
+bar + coord_polar()
+```
+
+### Exercises
+
+#### Turn a stacked bar chart into a pie chart using coord_polar().
+良く分からんができた。まず一本に情報をまとめた棒グラフを作る。x軸に空欄を設定したbarだとクラスで分けずに一本に積んでくれる。
+
+```{r}
+diamonds |> 
+  ggplot(aes(x = "", fill = cut)) +
+  geom_bar() 
+```
+
+
+それをcoord_polarで丸くする。凝ったものもできそうだが今はこれで。
+```{r}
+diamonds |> 
+  ggplot(aes(x = "", fill = cut)) +
+  geom_bar()  +
+  coord_polar("y", start = 0)
+
+```
+
+
+応用して割合を計算するならこう。
+```{r}
+diamonds |> 
+  ggplot(aes(x = "", y = after_stat(count/sum(count)), fill = cut)) + 
+  geom_bar() +
+  coord_polar("y", start = 0)
+
+```
+
+
+
+
+#### What’s the difference between coord_quickmap() and coord_map()?
+
+coord_map() projects a portion of the earth, which is approximately spherical, onto a flat 2D plane using any projection defined by the mapproj package. Map projections do not, in general, preserve straight lines, so this requires considerable computation. coord_quickmap() is a quick approximation that does preserve straight lines. It works best for smaller areas closer to the equator.  
+[ソース](https://ggplot2.tidyverse.org/reference/coord_map.html)
+
+
+```{r}
+nz <- map_data("nz")
+
+ggplot(nz, aes(x = long, y = lat, group = group)) + 
+  geom_polygon(fill = "white", color = "black")+
+  coord_map()
+```
+
+#### What does the following plot tell you about the relationship between city and highway mpg? Why is coord_fixed() important? What does geom_abline() do?
+
+The ratio represents the number of units on the y-axis equivalent to one unit on the x-axis. The default, ratio = 1, ensures that one unit on the x-axis is the same length as one unit on the y-axis. 
+
+とのこと。xとyが１：１になっているのでより実際に即した傾きになっているんじゃない？わからん。geom_ablineはデフォルトの値で傾き1、切片0の斜線を引いているよう。つまり$y = x$の関数が描画されているのといっしょ。
+
+```{r}
+ggplot(data = mpg, mapping = aes(x = cty, y = hwy)) +
+  geom_point() + 
+  geom_abline() +
+  coord_fixed()
+
+```
+

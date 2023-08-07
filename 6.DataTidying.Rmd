@@ -1,0 +1,276 @@
+---
+title: "6 Data tidying"
+author: "Hikaru Hashimoto"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    df_print: "paged"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 6.1 Introduction
+Tidy dataについて勉強していくよ。データをTidyにするためにPivotをよく使うよ。
+
+```{r}
+library(tidyverse)
+```
+
+
+
+## 6.2 Tidy data
+Tidy data (整然データ)という概念はこの本の著者のHadley Wickhamが提唱した概念。対義語はmessy data (雑然データ)。整然データの定義は以下。図はそのイメージ。  
+
+- 変数が列。Each variable is a column.  
+- 観察が行。Each observation is a row.  
+- 値がセル。Each value is a cell.  
+
+```{r, echo=FALSE, ,fig.align = 'center', fig.cap="出典 https://r4ds.hadley.nz/data-tidy.html"}
+knitr::include_graphics("images/tidy-1.png", dpi = 270)
+```
+
+  
+
+Tidyデータと雑然データについての説明は[wikipediaが良くまとまっています](https://ja.wikipedia.org/wiki/Tidy_data#%E9%9B%91%E7%84%B6%E3%83%87%E3%83%BC%E3%82%BF)。
+また余談ですが行と列, ColumnとRowについては慣れるまでは[このイメージ](https://id.fnshr.info/2015/10/17/matrix/)を私は持ち続けていました。  
+
+TidyにすることでＲでのデータのハンドリングが楽になる。Rの関数が縦ベクトルを引数として想定しているものが多いから（意訳）。  
+
+
+### Exercises
+
+#### 1. テーブルの解釈  
+Table1: それぞれのObservationが一つの国で特定の年にどれくらい結核の罹患者がいたか、またその国の人口を表している。  
+Table2: それぞれのobservationが一つの国の特定の年の結核感染者数か人口を表している。  
+Table3: それぞれのobservationが一つの国の特定の年の人口一人当たりの結核感染者数の割合を示している。rateがchrで格納されているのが気になる。  
+  
+#### 2. Table2とTable3をどうやって操作するか  
+Table2:  
+上から順に見て(for i in idみたいな）typeがcasesだったらそのidのcount / その次のidのcount * 10000の計算結果をrateの列に入れる。typeがpopulationだったらその直前のrateをそのまま持ってくる。  
+
+table3:  
+- rateをスラッシュの前と後ろでcasesとpopulationに分けたものを新しい列に格納する。  
+- chrを数字に変換する。  
+- cases/population * 10000の計算結果を新しいrateの列に入れる。  
+- 余計な列を消す。  
+
+## 6.3 Lengthening data
+実際に作業をするとTidyでないデータがよくある。そもそもtidyという概念が世間一般に知られていない（R界隈の用語？）。そのためにテーブルを変形させる関数としてpivot_longerとpivot_widerがある。  
+
+### Data in column names  
+ビルボードのデータセットを使う。
+
+```{r}
+billboard
+```
+
+なぜこれをtidyにしないといけないかというと、一つの理由としてはwk1以降の列に入っている数字が何を表しているのかこのデータからだと分からないからというのが挙げられる。87と入っているのが売り値とも考えられるし、売り上げ枚数かもしれない。以下のように縦持ちに変えてrankの列に入れることでこれらの数字がrankを表していると(コンピュータにも)
+分かるようになる。  
+  
+
+```{r}
+billboard |> 
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "Week",
+    values_to = "rank"
+  )
+```
+
+あるいはランクのNAを省くことも考えられる。
+```{r}
+billboard |> 
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week",
+    values_to = "rank",
+    values_drop_na = TRUE
+  )
+```
+
+またweekがこの場合だとchrで扱いにくさを覚えることもあるので以下のようにすることも考えられる。chrでも操作できないことは無いがwk1のあとがwk2ではなくwk11になるので直感的でない。readrの中の関数のparse_number()が数字を拾ってくれる。
+
+```{r}
+billboard_longer <- billboard |> 
+  pivot_longer(
+    cols = starts_with("wk"),
+    names_to = "week",
+    values_to = "rank",
+    values_drop_na = TRUE
+  ) |> 
+  mutate(
+    week = parse_number(week)
+  )
+
+billboard_longer
+```
+```{r}
+billboard_longer |> 
+  ggplot(aes(x = week, y = rank, group = track)) +
+  geom_line(alpha = 0.25) +
+  scale_y_reverse()
+```
+
+### How does pivoting work?  
+pivot_longerの最低限の引数はdataとcols。dataは第一引数なのでパイプを使う場合は気にしなくていい。本文中にあるようにcolsはどの変数をこの操作で変形させるか指定する。それ以外のnames_toやvalues_toはデフォルトが設定されているので入れなくても動く。
+
+本文でよく使われているargumentsは以下３つ。
+colsの引数でどの変数を変形させるかを選ぶ。    
+names_toでその変数の名前をどういう名前の列に格納するかを指定する。  
+values_toでその変数の値をどういう名前の列に格納するかを指定する。　　
+```{r}
+df <- tribble(
+  ~id, ~bp1, ~bp2,
+  "A", 100, 120,
+  "B", 140, 115,
+  "C", 120, 125
+)
+
+df |> 
+  pivot_longer(
+    cols = bp1:bp2,
+    #以下はデフォルトの値が設定されているので無くても動く
+    #names_to = "measures",
+    #values_to = "value"
+  )
+```
+
+### Many variables in column names  
+ちょっと複雑。一つ前のチャプターの応用的な立ち位置。列の名前が複数の変数に分けられるパターン。この場合だと(変数1)_(変数2)_(変数3)の形で、変数1が診察に使われた方法、変数2がジェンダー、変数3が年齢層になっている。たとえばsp_m_014ならspと言う方法（詳細不明）で診察された男性の0-14歳の數を格納する変数となる。この変数をピボットするときにnames_sepの引数でsp, m, 014の3つの変数に分ける。
+
+```{r}
+who2 |> 
+  pivot_longer(
+    cols = !(country:year),
+    names_to = c("diagnosis", "gender", "age"),#pivotして3つに分けた変数を格納する列
+    names_sep = "_",
+    values_to = "count"
+  )
+```
+
+### Data and variable names in the column headers  
+もっと複雑。変数名の後ろ半分を変数としてpivotしたいケース。本文で取り上げられているケースだと、dobとnameをピボット後に変数として、child1とchild2を変数として扱いたい。
+
+```{r, echo=FALSE, ,fig.align = 'center', fig.cap="インプットの何をどうしたいのか"}
+knitr::include_graphics("images/names_to_1.png", dpi = 270)
+```
+
+一つ前のセクションと同じようにnames_sepの変数で"_"を指定してどの文字で変数名を分割しているかを明記している。このケースでは、さらにnames_toの変数にベクトルでc(".value", "child")を入れている。".value"がvalues_toをoverrideしているという説明はされているが、むりやり日本語で解釈を加えると以下のように処理がされている（はず）。  
+
+- names_sepで分割した変数の最初の部分はアウトプットの変数名として扱う。  
+- 分割した残りの部分はベクトル内の".value"以降の要素をアウトプット時の変数名として、そこに格納する。 
+
+本文にもある以下のコードを無理やり日本語で読み下すと、family以外の変数を、"\_"で分割して（names_sepの変数）、分割された一番最初の項目(dobとname）と"child"を変数名とする。dobとnameの列には元々のdob_, name_の列に入っていた値を入れる。分割された変数名の"_"以降の項目は"child"の列の値として格納する。
+
+```{r}
+household |> 
+  pivot_longer(
+    cols = !family,
+    names_to = c(".value", "child"),
+    names_sep = "_",
+    values_drop_na = TRUE
+  )
+```
+
+
+
+#### (オマケ)"_"が二つ変数名あるとき
+（こんなのあまり無いと思うが）このようなテーブルがあった時の挙動も見てみると理解が進むかも？
+
+```{r}
+df2 <- tribble(
+  ~id, ~x_1_1, ~x_1_2, ~x_2_1, ~x_2_2,
+  "A", 1, 2, 3, 4,
+  "B", 5, 6, 7, 8,
+  "C", 9, 10, 11, 12,
+)
+
+df2
+
+```
+
+```{r, echo=FALSE, ,fig.align = 'center', fig.cap="こういうことがやりたい"}
+knitr::include_graphics("images/names_to_2.png", dpi = 270)
+```
+
+この場合はnames_sep = "_"で分けると三つの要素になるので、names_toのところのベクトルには".value"以外に2つの要素を入れてあげるとうまくいく。
+
+```{r}
+df2 |> 
+  pivot_longer(
+    cols = !id,
+    names_to = c(".value", "num1", "num2"),
+    names_sep = "_",
+  )
+```
+
+## 6.4 Widening data
+
+pivot_widerに話をピボットするぜ！  
+
+pivot_widerのメインの変数は２つ。  
+
+- names_from: インプットのどの変数をアウトプットの変数にするか
+- values_from: インプットのどの変数をアウトプットの変数の値として格納するか
+  
+  
+本文のデータセット分かりにくいので新しく作りました。
+```{r}
+df3 <- tribble(
+  ~生徒, ~科目, ~点数,
+  "たろう", "国語", 70,
+  "たろう", "算数", 60,
+  "はなこ", "国語", 90,
+  "はなこ", "算数", 50,
+)
+
+df3
+```
+
+このテーブルを生徒毎のそれぞれの科目の得点を横に並べることができる。
+
+```{r}
+df3 |> 
+  pivot_wider(
+    names_from = 科目,
+    values_from = 点数
+  )
+```
+
+
+本文の中に以下のような記載があるが、先のテーブルに春学期と秋学期を加えると直感的。今度はたろうとはなこが一行にまとまらず、それぞれ春と秋で別の行になる。  
+
+> the rows in the output are determined by all the variables that aren't going into the new names or values. There are called the id_cols.
+
+
+
+```{r}
+df4 <- tribble(
+  ~生徒, ~学期, ~科目, ~点数,
+  "たろう", "春", "国語", 70,
+  "たろう", "春", "算数", 60,
+  "たろう", "秋", "国語", 60,
+  "たろう", "秋", "算数", 40,
+  "はなこ", "春", "国語", 90,
+  "はなこ", "春", "算数", 50,
+  "はなこ", "秋", "国語", 80,
+  "はなこ", "秋", "算数", 100,
+)
+
+df4 |> 
+  pivot_wider(
+    names_from = 科目,
+    values_from = 点数
+  )
+```
+
+横に長くすると、縦長の時よりも人間にとって見やすいテーブルになることが多い気がするので、何かレポートとして表を作るときにはpivot_widerのお世話になることが多い気がする。
+
+
+## オマケ:他の引数を詳しく
+Qiitaに[他の引数を詳しく紹介している記事](https://qiita.com/swathci/items/4ce25faddfeff3a29a5f)がありました。
+
